@@ -62,6 +62,8 @@
 /* Global Variables */
 
 Dcache_Stage* dc = NULL;
+Hash_Table *access_count = NULL;
+Cache *fully_associative_cache = NULL;
 
 /**************************************************************************************/
 /* set_dcache_stage: */
@@ -111,6 +113,12 @@ void init_dcache_stage(uns8 proc_id, const char* name) {
                DCACHE_REPL);
 
   memset(dc->rand_wb_state, 0, NUM_ELEMENTS(dc->rand_wb_state));
+  access_count = (Hash_Table*)malloc(sizeof(Hash_Table));
+  init_hash_table(access_count, "access count", DCACHE_SIZE, sizeof(int));
+  fully_associative_cache = (Cache *) malloc(sizeof(Cache));
+  init_cache(fully_associative_cache, "fully associative dcache", DCACHE_SIZE, (int) (DCACHE_SIZE / DCACHE_LINE_SIZE), DCACHE_LINE_SIZE, sizeof(Dcache_Data), DCACHE_REPL);
+  // maybe need to realloc space for this if the set runs out?
+
 }
 
 
@@ -160,7 +168,11 @@ void update_dcache_stage(Stage_Data* src_sd) {
   uns          oldest_index;
   int          start_op_count;
   Addr         line_addr;
+  Addr         recv_line_addr;
   uns          ii, jj;
+  Flag new_entry = TRUE;
+  Flag not_new_entry = FALSE;
+  void *addr_access_count;
 
   // {{{ phase 1 - move ops into the dcache stage
   ASSERT(dc->proc_id, src_sd->max_op_count == dc->sd.max_op_count);
@@ -264,9 +276,9 @@ void update_dcache_stage(Stage_Data* src_sd) {
     bank = op->oracle_info.va >> dc->dcache.shift_bits &
            N_BIT_MASK(LOG2(DCACHE_BANKS));
     /* check on the availability of a read port for the given bank */
-    DEBUG(dc->proc_id,
-          "check_read and write port availiabilty mem_type:%s bank:%d \n",
-          (op->table_info->mem_type == MEM_ST) ? "ST" : "LD", bank);
+    // DEBUG(dc->proc_id,
+    //       "check_read and write port availiabilty mem_type:%s bank:%d \n",
+    //       (op->table_info->mem_type == MEM_ST) ? "ST" : "LD", bank);
     if(!PERFECT_DCACHE && ((op->table_info->mem_type == MEM_ST &&
                             !get_write_port(&dc->ports[bank])) ||
                            (op->table_info->mem_type != MEM_ST &&
@@ -446,6 +458,17 @@ void update_dcache_stage(Stage_Data* src_sd) {
             FREQ_DOMAIN_L1);
           STAT_EVENT(op->proc_id, DCACHE_MISS_WAITMEM);
         }
+        addr_access_count = hash_table_access(access_count, line_addr);
+        if (addr_access_count == NULL) {
+          STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
+          hash_table_access_create(access_count, line_addr, &new_entry);
+        } else {
+            if (cache_access(fully_associative_cache, line_addr, &recv_line_addr, not_new_entry) == NULL) {
+              STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
+            } else {
+              STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
+            }
+        }
       } else if(op->table_info->mem_type == MEM_PF ||
                 op->table_info->mem_type == MEM_WH) {
         // prefetches don't scan the store buffer
@@ -554,6 +577,17 @@ void update_dcache_stage(Stage_Data* src_sd) {
             op->done_cycle = cycle_count + DCACHE_CYCLES +
                              op->inst_info->extra_ld_latency;
             op->state = OS_SCHEDULED;
+          }
+          addr_access_count = hash_table_access(access_count, line_addr);
+          if (addr_access_count == NULL) {
+            STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
+            hash_table_access_create(access_count, line_addr, &new_entry);
+          } else {
+              if (cache_access(fully_associative_cache, line_addr, &recv_line_addr, not_new_entry) == NULL) {
+                STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
+              } else {
+                STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
+              }
           }
         } else {
           op->state                                     = OS_WAIT_MEM;
