@@ -63,7 +63,7 @@
 
 Dcache_Stage* dc = NULL;
 Hash_Table *access_count = NULL;
-Cache *fully_associative_cache = NULL;
+Cache fully_associative_cache;
 
 /**************************************************************************************/
 /* set_dcache_stage: */
@@ -94,6 +94,7 @@ void init_dcache_stage(uns8 proc_id, const char* name) {
   /* initialize the cache structure */
   init_cache(&dc->dcache, "DCACHE", DCACHE_SIZE, DCACHE_ASSOC, DCACHE_LINE_SIZE,
              sizeof(Dcache_Data), DCACHE_REPL);
+  init_cache(&fully_associative_cache, "fully associative dcache", DCACHE_SIZE, (uns) (DCACHE_SIZE / DCACHE_LINE_SIZE), DCACHE_LINE_SIZE, sizeof(Dcache_Data), DCACHE_REPL);
 
   reset_dcache_stage();
 
@@ -114,9 +115,7 @@ void init_dcache_stage(uns8 proc_id, const char* name) {
 
   memset(dc->rand_wb_state, 0, NUM_ELEMENTS(dc->rand_wb_state));
   access_count = (Hash_Table*)malloc(sizeof(Hash_Table));
-  init_hash_table(access_count, "access count", DCACHE_SIZE, sizeof(int));
-  fully_associative_cache = (Cache *) malloc(sizeof(Cache));
-  init_cache(fully_associative_cache, "fully associative dcache", DCACHE_SIZE, (int) (DCACHE_SIZE / DCACHE_LINE_SIZE), DCACHE_LINE_SIZE, sizeof(Dcache_Data), DCACHE_REPL);
+  init_hash_table(access_count, "access count", (uns) (DCACHE_SIZE / DCACHE_LINE_SIZE), sizeof(Addr));
   // maybe need to realloc space for this if the set runs out?
 
 }
@@ -164,14 +163,14 @@ void debug_dcache_stage() {
 /* update_dcache_stage: */
 void update_dcache_stage(Stage_Data* src_sd) {
   Dcache_Data* line;
+  Dcache_Data* fa_line;
   Counter      oldest_op_num, last_oldest_op_num;
   uns          oldest_index;
   int          start_op_count;
   Addr         line_addr;
   Addr         recv_line_addr;
   uns          ii, jj;
-  Flag new_entry = TRUE;
-  Flag not_new_entry = FALSE;
+  Flag cache_new_entry = TRUE;
   void *addr_access_count;
 
   // {{{ phase 1 - move ops into the dcache stage
@@ -298,6 +297,7 @@ void update_dcache_stage(Stage_Data* src_sd) {
 
     line = (Dcache_Data*)cache_access(&dc->dcache, op->oracle_info.va,
                                       &line_addr, TRUE);
+    fa_line = cache_access(&fully_associative_cache, line_addr, &recv_line_addr, TRUE);
     op->dcache_cycle = cycle_count;
     dc->idle_cycle   = MAX2(dc->idle_cycle, cycle_count + DCACHE_CYCLES);
 
@@ -458,14 +458,20 @@ void update_dcache_stage(Stage_Data* src_sd) {
             FREQ_DOMAIN_L1);
           STAT_EVENT(op->proc_id, DCACHE_MISS_WAITMEM);
         }
-        addr_access_count = hash_table_access(access_count, line_addr);
-        if (addr_access_count == NULL) {
+        addr_access_count = hash_table_access_create(access_count, line_addr, &cache_new_entry);
+        if (cache_new_entry) {
+          DEBUG(op->proc_id, "Encountered compulsory cache miss on load with attempted address %lld\n", line_addr);
           STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
-          hash_table_access_create(access_count, line_addr, &new_entry);
+          
         } else {
-            if (cache_access(fully_associative_cache, line_addr, &recv_line_addr, not_new_entry) == NULL) {
+            (*((int *) addr_access_count))++;
+            if (fa_line == NULL) {
+              DEBUG(op->proc_id, "Encountered capacity cache miss on load with attempted address %lld\n", line_addr);
+              DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
               STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
             } else {
+              DEBUG(op->proc_id, "Encountered conflict cache miss on load with attempted address %lld\n", line_addr);
+              DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
               STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
             }
         }
@@ -578,14 +584,19 @@ void update_dcache_stage(Stage_Data* src_sd) {
                              op->inst_info->extra_ld_latency;
             op->state = OS_SCHEDULED;
           }
-          addr_access_count = hash_table_access(access_count, line_addr);
-          if (addr_access_count == NULL) {
+          addr_access_count = hash_table_access_create(access_count, line_addr, &cache_new_entry);
+          if (cache_new_entry) {
+            DEBUG(op->proc_id, "Encountered compulsory miss on store with attempted address %lld\n", line_addr);
             STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
-            hash_table_access_create(access_count, line_addr, &new_entry);
           } else {
-              if (cache_access(fully_associative_cache, line_addr, &recv_line_addr, not_new_entry) == NULL) {
+              (*((int *) addr_access_count))++;
+              if (fa_line == NULL) {
+                DEBUG(op->proc_id, "Encountered capacity miss on store with attempted address %lld\n", line_addr);
+                DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
                 STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
               } else {
+                DEBUG(op->proc_id, "Encountered conflict miss on store with attempted address %lld\n", line_addr);
+                DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
                 STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
               }
           }
@@ -625,7 +636,7 @@ void update_dcache_stage(Stage_Data* src_sd) {
 Flag dcache_fill_line(Mem_Req* req) {
   uns bank = req->addr >> dc->dcache.shift_bits &
              N_BIT_MASK(LOG2(DCACHE_BANKS));
-  Dcache_Data* data;
+  Dcache_Data* data, *fa_data;
   Addr         line_addr, repl_line_addr;
   Op*          op;
   Op**         op_p  = (Op**)list_start_head_traversal(&req->op_ptrs);
@@ -650,12 +661,12 @@ Flag dcache_fill_line(Mem_Req* req) {
   if(DC_PREF_CACHE_ENABLE &&
      ((USE_CONFIRMED_OFF ? req->off_path_confirmed : req->off_path) ||
       (req->type == MRT_DPRF))) {  // Add prefetches here
-    DEBUG(dc->proc_id,
-          "Filling pref_dcache off_path:%d addr:0x%s  :%7d index:%7d "
-          "op_count:%d oldest:%lld\n",
-          req->off_path, hexstr64s(req->addr), (int)req->addr,
-          (int)(req->addr >> LOG2(DCACHE_LINE_SIZE)), req->op_count,
-          (req->op_count ? req->oldest_op_unique_num : -1));
+    // DEBUG(dc->proc_id,
+    //       "Filling pref_dcache off_path:%d addr:0x%s  :%7d index:%7d "
+    //       "op_count:%d oldest:%lld\n",
+    //       req->off_path, hexstr64s(req->addr), (int)req->addr,
+    //       (int)(req->addr >> LOG2(DCACHE_LINE_SIZE)), req->op_count,
+    //       (req->op_count ? req->oldest_op_unique_num : -1));
 
     data = (Dcache_Data*)cache_insert(&dc->pref_dcache, dc->proc_id, req->addr,
                                       &line_addr, &repl_line_addr);
@@ -674,8 +685,8 @@ Flag dcache_fill_line(Mem_Req* req) {
     if(repl_line_valid && data->dirty) {
       /* need to do a write-back */
       uns repl_proc_id = get_proc_id_from_cmp_addr(repl_line_addr);
-      DEBUG(dc->proc_id, "Scheduling writeback of addr:0x%s\n",
-            hexstr64s(repl_line_addr));
+      // DEBUG(dc->proc_id, "Scheduling writeback of addr:0x%s\n",
+      //       hexstr64s(repl_line_addr));
       ASSERT(dc->proc_id, data->read_count[0] || data->read_count[1] ||
                             data->write_count[0] || data->write_count[1]);
 
@@ -711,12 +722,13 @@ Flag dcache_fill_line(Mem_Req* req) {
 
     data = (Dcache_Data*)cache_insert(&dc->dcache, dc->proc_id, req->addr,
                                       &line_addr, &repl_line_addr);
-    DEBUG(dc->proc_id,
-          "Filling dcache  off_path:%d addr:0x%s  :%7d index:%7d op_count:%d "
-          "oldest:%lld\n",
-          req->off_path, hexstr64s(req->addr), (int)req->addr,
-          (int)(req->addr >> LOG2(DCACHE_LINE_SIZE)), req->op_count,
-          (req->op_count ? req->oldest_op_unique_num : -1));
+    fa_data = (Dcache_Data*)cache_insert(&fully_associative_cache, dc->proc_id, req->addr, &line_addr, &repl_line_addr);
+    // DEBUG(dc->proc_id,
+    //       "Filling dcache  off_path:%d addr:0x%s  :%7d index:%7d op_count:%d "
+    //       "oldest:%lld\n",
+    //       req->off_path, hexstr64s(req->addr), (int)req->addr,
+    //       (int)(req->addr >> LOG2(DCACHE_LINE_SIZE)), req->op_count,
+    //       (req->op_count ? req->oldest_op_unique_num : -1));
     STAT_EVENT(dc->proc_id, DCACHE_FILL);
     ASSERT(dc->proc_id, req->emitted_cycle);
     ASSERT(dc->proc_id, cycle_count >= req->emitted_cycle);
@@ -778,14 +790,14 @@ Flag dcache_fill_line(Mem_Req* req) {
                                        (op->table_info->mem_type == MEM_LD);
       data->write_count[op->off_path] = data->write_count[op->off_path] +
                                         (op->table_info->mem_type == MEM_ST);
-      DEBUG(dc->proc_id, "%s: %s line addr:0x%s: %7d\n", unsstr64(op->op_num),
-            disasm_op(op, FALSE), hexstr64s(req->addr),
-            (int)(req->addr >> LOG2(DCACHE_LINE_SIZE)));
+      // DEBUG(dc->proc_id, "%s: %s line addr:0x%s: %7d\n", unsstr64(op->op_num),
+      //       disasm_op(op, FALSE), hexstr64s(req->addr),
+      //       (int)(req->addr >> LOG2(DCACHE_LINE_SIZE)));
     }
 
     if(op->unique_num == *op_unique && op->op_pool_valid) {
-      DEBUG(dc->proc_id, "Awakening op_num:%lld %d %d\n", op->op_num,
-            op->engine_info.l1_miss_satisfied, op->in_rdy_list);
+      // DEBUG(dc->proc_id, "Awakening op_num:%lld %d %d\n", op->op_num,
+      //       op->engine_info.l1_miss_satisfied, op->in_rdy_list);
       ASSERT(dc->proc_id, !op->in_rdy_list);
 
       op->done_cycle = cycle_count + 1;
