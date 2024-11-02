@@ -443,6 +443,24 @@ void update_dcache_stage(Stage_Data* src_sd) {
             STAT_EVENT(op->proc_id, DCACHE_MISS_LD_ONPATH);
             op->oracle_info.dcmiss = TRUE;
             STAT_EVENT(op->proc_id, DCACHE_MISS_LD);
+
+            addr_access_count = hash_table_access_create(access_count, line_addr, &cache_new_entry);
+            if (cache_new_entry) {
+              DEBUG(op->proc_id, "Encountered compulsory cache miss on load with attempted address %lld\n", line_addr);
+              STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
+              
+            } else {
+                (*((int *) addr_access_count))++;
+                if (fa_line == NULL) {
+                  DEBUG(op->proc_id, "Encountered capacity cache miss on load with attempted address %lld\n", line_addr);
+                  DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
+                  STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
+                } else {
+                  DEBUG(op->proc_id, "Encountered conflict cache miss on load with attempted address %lld\n", line_addr);
+                  DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
+                  STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
+                }
+            }
           } else {
             wrongpath_dcmiss = TRUE;
             STAT_EVENT(op->proc_id, DCACHE_MISS_OFFPATH);
@@ -457,23 +475,6 @@ void update_dcache_stage(Stage_Data* src_sd) {
           mem->uncores[dc->proc_id].mem_block_start     = freq_cycle_count(
             FREQ_DOMAIN_L1);
           STAT_EVENT(op->proc_id, DCACHE_MISS_WAITMEM);
-        }
-        addr_access_count = hash_table_access_create(access_count, line_addr, &cache_new_entry);
-        if (cache_new_entry) {
-          DEBUG(op->proc_id, "Encountered compulsory cache miss on load with attempted address %lld\n", line_addr);
-          STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
-          
-        } else {
-            (*((int *) addr_access_count))++;
-            if (fa_line == NULL) {
-              DEBUG(op->proc_id, "Encountered capacity cache miss on load with attempted address %lld\n", line_addr);
-              DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
-              STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
-            } else {
-              DEBUG(op->proc_id, "Encountered conflict cache miss on load with attempted address %lld\n", line_addr);
-              DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
-              STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
-            }
         }
       } else if(op->table_info->mem_type == MEM_PF ||
                 op->table_info->mem_type == MEM_WH) {
@@ -573,6 +574,22 @@ void update_dcache_stage(Stage_Data* src_sd) {
             STAT_EVENT(op->proc_id, DCACHE_MISS_ST_ONPATH);
             op->oracle_info.dcmiss = TRUE;
             STAT_EVENT(op->proc_id, DCACHE_MISS_ST);
+            addr_access_count = hash_table_access_create(access_count, line_addr, &cache_new_entry);
+            if (cache_new_entry) {
+              DEBUG(op->proc_id, "Encountered compulsory miss on store with attempted address %lld\n", line_addr);
+              STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
+            } else {
+                (*((int *) addr_access_count))++;
+                if (fa_line == NULL) {
+                  DEBUG(op->proc_id, "Encountered capacity miss on store with attempted address %lld\n", line_addr);
+                  DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
+                  STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
+                } else {
+                  DEBUG(op->proc_id, "Encountered conflict miss on store with attempted address %lld\n", line_addr);
+                  DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
+                  STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
+                }
+            }
           } else {
             wrongpath_dcmiss = TRUE;
             STAT_EVENT(op->proc_id, DCACHE_MISS_OFFPATH);
@@ -583,22 +600,6 @@ void update_dcache_stage(Stage_Data* src_sd) {
             op->done_cycle = cycle_count + DCACHE_CYCLES +
                              op->inst_info->extra_ld_latency;
             op->state = OS_SCHEDULED;
-          }
-          addr_access_count = hash_table_access_create(access_count, line_addr, &cache_new_entry);
-          if (cache_new_entry) {
-            DEBUG(op->proc_id, "Encountered compulsory miss on store with attempted address %lld\n", line_addr);
-            STAT_EVENT(op->proc_id, DCACHE_MISS_COMPULSORY);
-          } else {
-              (*((int *) addr_access_count))++;
-              if (fa_line == NULL) {
-                DEBUG(op->proc_id, "Encountered capacity miss on store with attempted address %lld\n", line_addr);
-                DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
-                STAT_EVENT(op->proc_id, DCACHE_MISS_CAPACITY);
-              } else {
-                DEBUG(op->proc_id, "Encountered conflict miss on store with attempted address %lld\n", line_addr);
-                DEBUG(op->proc_id, "We have seen this address before, hash table value is %d\n", *((int *) addr_access_count));
-                STAT_EVENT(op->proc_id, DCACHE_MISS_CONFLICT);
-              }
           }
         } else {
           op->state                                     = OS_WAIT_MEM;
