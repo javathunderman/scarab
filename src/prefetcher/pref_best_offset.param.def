@@ -1,0 +1,2 @@
+DEF_PARAM(pref_bo_on                 , PREF_BO_ON              , Flag   , Flag      , FALSE       ,      ) 
+DEF_PARAM(debug_pref_bo              , DEBUG_PREF_BO           , Flag   , Flag      , FALSE       ,      ) 
