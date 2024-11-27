@@ -34,17 +34,34 @@ void pref_ghb_init(HWP* hwp) {
   if(PREF_UMLC_ON){
     bo_prefetchers_array.bo_hwp_core_umlc = (Pref_BO*)malloc(sizeof(Pref_BO) * NUM_CORES);
     bo_prefetchers_array.bo_hwp_core_umlc-> type = UMLC;
-    init_ghb_core(hwp, bo_prefetchers_array.bo_hwp_core_umlc);
+    init_bo_core(hwp, bo_prefetchers_array.bo_hwp_core_umlc);
   }
   if(PREF_UL1_ON){
     bo_prefetchers_array.bo_hwp_core_ul1  = (Pref_BO*)malloc(sizeof(Pref_BO) * NUM_CORES);
     bo_prefetchers_array.bo_hwp_core_ul1-> type = UL1;
-    init_ghb_core(hwp, bo_prefetchers_array.bo_hwp_core_ul1);
+    init_bo_core(hwp, bo_prefetchers_array.bo_hwp_core_ul1);
   }
 
 }
 
-void init_ghb_core(HWP* hwp, Pref_BO* bo_hwp_core) {
-    bo_hwp_core->bo_tables->recent_requests = (Hash_Table*)malloc(sizeof(Hash_Table));
-    init_hash_table(bo_hwp_core->bo_tables->recent_requests, "recent requests", OFFSET_LIST_SIZE, sizeof(uns));
+void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
+    // Malloc the recent requests table
+    bo_hwp_core->bo_tables->recent_requests = (uns*)malloc(sizeof(uns) * RECENT_REQUESTS_SIZE);
+    // Malloc the score table, and set all entries to 0 on init
+    bo_hwp_core->score_table = (uns*)malloc(sizeof(uns) * OFFSET_LIST_SIZE);
+    memset(bo_hwp_core->score_table, 0, OFFSET_LIST_SIZE * sizeof(uns));
+}
+
+uns hash_addr(Addr lineAddr) {
+  uns lsb_8 = lineAddr & 0xFF;
+  uns next_8 = (lineAddr & 0xFF00) >> 8;
+  return (lsb_8 ^ next_8);
+}
+void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr) {
+  DEBUG(0, "Adding lineAddr %lld with base address %lld to recent requests table\n", lineAddr, (lineAddr - bo_hwp_core->current_prefetch_offset));
+  bo_hwp_core->recent_requests[hash_addr(lineAddr)] = lineAddr - bo_hwp_core->current_prefetch_offset;
+}
+void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
+  // TODO: update score table
+  return;
 }

@@ -1,10 +1,8 @@
 #ifndef __PREF_BO_H__
 #define __PREF_BO_H__
 #include "pref_common.h"
+#define RECENT_REQUESTS_SIZE 256
 #define OFFSET_LIST_SIZE 52
-typedef struct BO_Entry_Struct {
-  Hash_Table *recent_requests;
-} BO_Entry;
 
 typedef struct Pref_BO_Struct {
   HWP_Info* hwp_info;
@@ -12,6 +10,8 @@ typedef struct Pref_BO_Struct {
   CacheLevel type;
   uns current_prefetch_offset;
   uns offset_training_index;
+  uns *recent_requests;
+  uns *score_table;
 } Pref_BO;
 
 static uns offsets[OFFSET_LIST_SIZE] = {1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16,
