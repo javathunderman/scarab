@@ -49,6 +49,9 @@ void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
     bo_hwp_core->bo_tables->recent_requests = (uns*)malloc(sizeof(uns) * RECENT_REQUESTS_SIZE);
     // Malloc the score table, and set all entries to 0 on init
     bo_hwp_core->score_table = (uns*)malloc(sizeof(uns) * OFFSET_LIST_SIZE);
+    bo_hwp_core->current_prefetch_offset = 1;
+    bo_hwp_core->offset_training_index = 0;
+    bo_hwp_core->current_round = 0;
     memset(bo_hwp_core->score_table, 0, OFFSET_LIST_SIZE * sizeof(uns));
 }
 
@@ -61,7 +64,17 @@ void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr) {
   DEBUG(0, "Adding lineAddr %lld with base address %lld to recent requests table\n", lineAddr, (lineAddr - bo_hwp_core->current_prefetch_offset));
   bo_hwp_core->recent_requests[hash_addr(lineAddr)] = lineAddr - bo_hwp_core->current_prefetch_offset;
 }
-void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
-  // TODO: update score table
-  return;
+uns pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
+  int scoreMaxInd = -1;
+  for (uns i = 0; i < OFFSET_LIST_SIZE; i++) {
+    if (bo_hwp->score_table[i] == SCOREMAX) {
+      scoreMaxInd = i;
+      break;
+    }
+  }
+  if (bo_hwp->current_round < ROUNDMAX) {
+    // we still have more training to do here for subsequent rounds
+    return bo_hwp->current_prefetch_offset;
+  }
+  return -1;
 }
