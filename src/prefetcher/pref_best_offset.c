@@ -46,7 +46,7 @@ void pref_ghb_init(HWP* hwp) {
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
     // Malloc the recent requests table
-    bo_hwp_core->bo_tables->recent_requests = (uns*)malloc(sizeof(uns) * RECENT_REQUESTS_SIZE);
+    bo_hwp_core->recent_requests = (uns*)malloc(sizeof(uns) * RECENT_REQUESTS_SIZE);
     // Malloc the score table, and set all entries to 0 on init
     bo_hwp_core->score_table = (uns*)malloc(sizeof(uns) * OFFSET_LIST_SIZE);
     bo_hwp_core->current_prefetch_offset = 1;
@@ -56,25 +56,80 @@ void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
 }
 
 uns hash_addr(Addr lineAddr) {
+  // XOR the last 16 bits with each other in 8 bit increments
   uns lsb_8 = lineAddr & 0xFF;
   uns next_8 = (lineAddr & 0xFF00) >> 8;
   return (lsb_8 ^ next_8);
 }
+
+// Add the new base address to the recent_requests table, using the hash of the line addr
 void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr) {
   DEBUG(0, "Adding lineAddr %lld with base address %lld to recent requests table\n", lineAddr, (lineAddr - bo_hwp_core->current_prefetch_offset));
   bo_hwp_core->recent_requests[hash_addr(lineAddr)] = lineAddr - bo_hwp_core->current_prefetch_offset;
 }
-uns pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
+
+void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
   int scoreMaxInd = -1;
+  // Look through score table for an existing SCOREMAX entry
   for (uns i = 0; i < OFFSET_LIST_SIZE; i++) {
     if (bo_hwp->score_table[i] == SCOREMAX) {
       scoreMaxInd = i;
-      break;
+      memset(bo_hwp->score_table, 0, sizeof(uns) * OFFSET_LIST_SIZE);
+      bo_hwp->current_prefetch_offset = offsets[scoreMaxInd];
+      bo_hwp->current_round = 0;
+      return;
     }
   }
-  if (bo_hwp->current_round < ROUNDMAX) {
-    // we still have more training to do here for subsequent rounds
-    return bo_hwp->current_prefetch_offset;
+  
+  if (bo_hwp->current_round == ROUNDMAX) {
+    uns scoreMax = 0;
+    for (uns i = 0; i < OFFSET_LIST_SIZE; i++) {
+      if (bo_hwp->score_table[i] > scoreMax) {
+        scoreMax = bo_hwp->score_table[i];
+        scoreMaxInd = i;
+      }
+    }
+    memset(bo_hwp->score_table, 0, sizeof(uns) * OFFSET_LIST_SIZE);
+    bo_hwp->current_prefetch_offset = offsets[scoreMaxInd];
+    bo_hwp->current_round = 0;
+    return;
   }
-  return -1;
+
+  // If we have neither a SCOREMAX or ROUNDMAX case, continue updating the score table
+
+  // Calculate base_addr using the current test offset
+  Addr base_addr = lineAddr - offsets[bo_hwp->offset_training_index];
+  uns hash_index = hash_addr(base_addr);
+
+  // If the recent requests table contains the base address of the incoming PF request
+  if (bo_hwp->recent_requests[hash_index] == base_addr) {
+    // our current test offset is good - increment its score
+    bo_hwp->score_table[bo_hwp->offset_training_index]++;
+  } else {
+      // If it doesn't match, then check if the score is greater than 0 (underflow prevention check)
+      if (bo_hwp->score_table[bo_hwp->offset_training_index] > 0) {
+        bo_hwp->score_table[bo_hwp->offset_training_index]--;
+      } else {
+        // Set to 0 otherwise
+        bo_hwp->score_table[bo_hwp->offset_training_index] = 0;
+      }
+  }
+
+  // Increment the test offset by 1 to move to the d_(i + 1)th offset
+  uns new_pf_test_offset = bo_hwp->current_prefetch_offset + 1;
+  // If we run out of offsets, increment the round counter and reset the test offset index to 0
+  if (new_pf_test_offset >= OFFSET_LIST_SIZE) {
+    bo_hwp->current_round++;
+    bo_hwp->current_prefetch_offset = 0;
+  } else {
+    // otherwise just increment
+    bo_hwp->current_prefetch_offset = new_pf_test_offset;
+  }
+
+  // TODO: update RR before or after we check the score table?
+  pref_update_rr(bo_hwp, lineAddr);
+}
+
+void pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
+    return;
 }
