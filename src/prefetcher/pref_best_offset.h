@@ -10,7 +10,7 @@ typedef struct Pref_BO_Struct {
   CacheLevel type;
   uns current_prefetch_offset;
   uns offset_training_index;
-  uns *recent_requests;
+  Addr *recent_requests;
   uns *score_table;
   uns current_round;
 } Pref_BO;
@@ -42,5 +42,6 @@ void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Fl
 void pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
 void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr, uns8 proc_id);
 uns hash_addr(Addr lineAddr);
+void dump_recent_requests(Addr *recent_requests);
 
 #endif
