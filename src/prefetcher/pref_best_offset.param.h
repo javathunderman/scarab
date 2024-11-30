@@ -1,5 +1,5 @@
-#ifndef __PREF_GHB_PARAM_H__
-#define __PREF_GHB_PARAM_H__
+#ifndef __PREF_BO_PARAM_H__
+#define __PREF_BO_PARAM_H__
 
 #include "globals/global_types.h"
 

@@ -15,10 +15,7 @@ typedef struct Pref_BO_Struct {
   uns current_round;
 } Pref_BO;
 
-static uns offsets[OFFSET_LIST_SIZE] = {1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16,
- 18, 20, 24, 25, 27, 30, 32, 36, 40, 45, 48, 50, 54, 60, 64, 72, 75, 80, 81, 90, 
- 96, 100, 108, 120, 125, 128, 135, 144, 150, 160, 162, 180, 192, 200, 216, 225, 
- 240, 243, 250, 256};
+extern uns offsets[OFFSET_LIST_SIZE];
 
 typedef struct{
   Pref_BO* bo_hwp_core_ul1;
@@ -41,5 +38,9 @@ void pref_bo_umlc_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC,
 /*************************************************************/
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core);
+void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit);
+void pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
+void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr, uns8 proc_id);
+uns hash_addr(Addr lineAddr);
 
 #endif

@@ -27,7 +27,12 @@
 #define DEBUG(proc_id, args...) _DEBUG(proc_id, DEBUG_PREF_BO, ##args)
 bo_prefetchers bo_prefetchers_array;
 
-void pref_ghb_init(HWP* hwp) {
+// cannot do offset initialization in header file?
+uns offsets[] = {1, 2, 3, 4, 5, 6, 8, 9, 10, 12, 15, 16, 18, 20, 24, 25, 27, 30,
+ 32, 36, 40, 45, 48, 50, 54, 60, 64, 72, 75, 80, 81, 90, 96, 100, 108, 120, 125, 
+ 128, 135, 144, 150, 160, 162, 180, 192, 200, 216, 225, 240, 243, 250, 256};
+
+void pref_bo_init(HWP* hwp) {
   if(!PREF_BO_ON)
     return;
   // PREF_UMLC/PREF_UL1 determines the cache line that uses this prefetcher?
@@ -41,7 +46,16 @@ void pref_ghb_init(HWP* hwp) {
     bo_prefetchers_array.bo_hwp_core_ul1-> type = UL1;
     init_bo_core(hwp, bo_prefetchers_array.bo_hwp_core_ul1);
   }
+}
 
+void pref_bo_ul1_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
+  STAT_EVENT(proc_id, PF_BO_UL1_HIT);
+  pref_bo_train(bo_prefetchers_array.bo_hwp_core_ul1, proc_id, lineAddr, loadPC, TRUE);
+}
+
+void pref_bo_ul1_miss(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
+  STAT_EVENT(proc_id, PF_BO_UL1_MISS);
+  pref_bo_train(bo_prefetchers_array.bo_hwp_core_ul1, proc_id, lineAddr, loadPC, FALSE);
 }
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
@@ -53,6 +67,9 @@ void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
     bo_hwp_core->offset_training_index = 0;
     bo_hwp_core->current_round = 0;
     memset(bo_hwp_core->score_table, 0, OFFSET_LIST_SIZE * sizeof(uns));
+    bo_hwp_core->hwp_info = hwp->hwp_info;
+    bo_hwp_core->hwp_info->enabled = TRUE;
+
 }
 
 uns hash_addr(Addr lineAddr) {
@@ -63,17 +80,21 @@ uns hash_addr(Addr lineAddr) {
 }
 
 // Add the new base address to the recent_requests table, using the hash of the line addr
-void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr) {
+void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr, uns8 proc_id) {
   DEBUG(0, "Adding lineAddr %lld with base address %lld to recent requests table\n", lineAddr, (lineAddr - bo_hwp_core->current_prefetch_offset));
+  STAT_EVENT(proc_id, PF_BO_NEW_RECENT_REQUEST);
   bo_hwp_core->recent_requests[hash_addr(lineAddr)] = lineAddr - bo_hwp_core->current_prefetch_offset;
 }
 
 void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
   int scoreMaxInd = -1;
   // Look through score table for an existing SCOREMAX entry
+  DEBUG(proc_id, "Currently testing offset %d\n", offsets[bo_hwp->current_prefetch_offset]);
   for (uns i = 0; i < OFFSET_LIST_SIZE; i++) {
     if (bo_hwp->score_table[i] == SCOREMAX) {
+      STAT_EVENT(proc_id, PF_BO_SCOREMAX_REACHED);
       scoreMaxInd = i;
+      DEBUG(proc_id, "SCOREMAX detected with offset being set to %d\n", offsets[i]);
       memset(bo_hwp->score_table, 0, sizeof(uns) * OFFSET_LIST_SIZE);
       bo_hwp->current_prefetch_offset = offsets[scoreMaxInd];
       bo_hwp->current_round = 0;
@@ -89,6 +110,8 @@ void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Fl
         scoreMaxInd = i;
       }
     }
+    STAT_EVENT(proc_id, PF_BO_ROUNDMAX_REACHED);
+    DEBUG(proc_id, "ROUNDMAX detected with offset being set to %d\n", offsets[scoreMaxInd]);
     memset(bo_hwp->score_table, 0, sizeof(uns) * OFFSET_LIST_SIZE);
     bo_hwp->current_prefetch_offset = offsets[scoreMaxInd];
     bo_hwp->current_round = 0;
@@ -125,11 +148,9 @@ void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Fl
     // otherwise just increment
     bo_hwp->current_prefetch_offset = new_pf_test_offset;
   }
-
-  // TODO: update RR before or after we check the score table?
-  pref_update_rr(bo_hwp, lineAddr);
 }
 
-void pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit) {
-    return;
+void pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC) {
+    pref_addto_ul1req_queue_set(proc_id, lineAddr, bo_hwp->hwp_info->id, 0, loadPC, 0, FALSE);
+    pref_update_rr(bo_hwp, lineAddr, proc_id);
 }
