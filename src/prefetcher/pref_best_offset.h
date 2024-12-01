@@ -39,7 +39,8 @@ void pref_bo_umlc_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC,
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core);
 void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit);
-void pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
+void pref_bo_get_offset_ul1(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
+void pref_bo_get_offset_umlc(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
 void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr, uns8 proc_id);
 uns hash_addr(Addr lineAddr);
 void dump_recent_requests(Addr *recent_requests);

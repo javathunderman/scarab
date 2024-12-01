@@ -38,13 +38,13 @@ void pref_bo_init(HWP* hwp) {
     return;
   DEBUG(0, "PREF_BO_ON is enabled\n");
   // PREF_UMLC/PREF_UL1 determines the cache line that uses this prefetcher?
-  if(PREF_UMLC_ON){
+  if(PREF_UMLC_ON && PREF_UMLC_BO_ON){
     DEBUG(0, "PREF_UMLC_ON is enabled\n");
     bo_prefetchers_array.bo_hwp_core_umlc = (Pref_BO*)malloc(sizeof(Pref_BO) * NUM_CORES);
     bo_prefetchers_array.bo_hwp_core_umlc-> type = UMLC;
     init_bo_core(hwp, bo_prefetchers_array.bo_hwp_core_umlc);
   }
-  if(PREF_UL1_ON){
+  if(PREF_UL1_ON && PREF_UL1_BO_ON){
     DEBUG(0, "PREF_UL1_ON is enabled\n");
     bo_prefetchers_array.bo_hwp_core_ul1  = (Pref_BO*)malloc(sizeof(Pref_BO) * NUM_CORES);
     bo_prefetchers_array.bo_hwp_core_ul1-> type = UL1;
@@ -55,13 +55,29 @@ void pref_bo_init(HWP* hwp) {
 void pref_bo_ul1_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
   DEBUG(0, "PREF_BO_UL1 hit!\n");
   STAT_EVENT(proc_id, PF_BO_UL1_HIT);
+  pref_bo_get_offset_ul1(&bo_prefetchers_array.bo_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC);
+  pref_bo_train(&bo_prefetchers_array.bo_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC, TRUE);
+}
+
+void pref_bo_umlc_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
+  DEBUG(0, "PREF_BO_UMLC hit!\n");
+  STAT_EVENT(proc_id, PF_BO_UMLC_HIT);
+  pref_bo_get_offset_umlc(&bo_prefetchers_array.bo_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC);
   pref_bo_train(&bo_prefetchers_array.bo_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC, TRUE);
 }
 
 void pref_bo_ul1_miss(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
   DEBUG(0, "PREF_BO_UL1 miss!\n");
   STAT_EVENT(proc_id, PF_BO_UL1_MISS);
+  pref_bo_get_offset_ul1(&bo_prefetchers_array.bo_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC);
   pref_bo_train(&bo_prefetchers_array.bo_hwp_core_ul1[proc_id], proc_id, lineAddr, loadPC, FALSE);
+}
+
+void pref_bo_umlc_miss(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
+  DEBUG(0, "PREF_BO_UMLC miss!\n");
+  STAT_EVENT(proc_id, PF_BO_UMLC_MISS);
+  pref_bo_get_offset_umlc(&bo_prefetchers_array.bo_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC);
+  pref_bo_train(&bo_prefetchers_array.bo_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC, TRUE);
 }
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
@@ -168,8 +184,13 @@ void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Fl
   }
 }
 
-void pref_bo_get_offset(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC) {
-    pref_addto_ul1req_queue_set(proc_id, lineAddr, bo_hwp->hwp_info->id, 0, loadPC, 0, FALSE);
+void pref_bo_get_offset_ul1(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC) {
+    pref_addto_ul1req_queue(proc_id, lineAddr, bo_hwp->hwp_info->id);
+    pref_update_rr(bo_hwp, lineAddr, proc_id);
+}
+
+void pref_bo_get_offset_umlc(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC) {
+    pref_addto_umlc_req_queue(proc_id, lineAddr, bo_hwp->hwp_info->id);
     pref_update_rr(bo_hwp, lineAddr, proc_id);
 }
 
