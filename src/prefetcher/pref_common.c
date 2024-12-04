@@ -607,7 +607,7 @@ Flag pref_addto_umlc_req_queue(uns8 proc_id, Addr line_index,
   }
 
   new_req.proc_id       = proc_id;
-  new_req.line_addr     = line_index << LOG2(DCACHE_LINE_SIZE);
+  new_req.line_addr     = line_index << LOG2(MLC_LINE_SIZE);
   new_req.line_index    = line_index;
   new_req.valid         = TRUE;
   new_req.distance      = 0;      // Not used for MLC

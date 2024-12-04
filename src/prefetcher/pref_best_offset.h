@@ -5,6 +5,7 @@
 #define OFFSET_LIST_SIZE 52
 #define SCOREMAX 31 // 5 bit scores
 #define ROUNDMAX 100 // arbitrary
+#define BADSCORE 1
 typedef struct Pref_BO_Struct {
   HWP_Info* hwp_info;
   CacheLevel type;
@@ -13,6 +14,7 @@ typedef struct Pref_BO_Struct {
   Addr *recent_requests;
   uns *score_table;
   uns current_round;
+  uns best_score;
 } Pref_BO;
 
 extern uns offsets[OFFSET_LIST_SIZE];
@@ -38,11 +40,13 @@ void pref_bo_umlc_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC,
 /*************************************************************/
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core);
-void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Flag is_hit);
+void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC,
+                   Flag is_hit);
+void train_termination_check(uns8 proc_id, Pref_BO* bo_hwp, int* retFlag);
 void pref_bo_get_offset_ul1(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
 void pref_bo_get_offset_umlc(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
 void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr, uns8 proc_id);
 uns hash_addr(Addr lineAddr);
 void dump_recent_requests(Addr *recent_requests);
-
+void dump_score_table(uns *score_table, uns size);
 #endif
