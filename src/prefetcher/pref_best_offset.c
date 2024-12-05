@@ -57,6 +57,19 @@ void pref_bo_init(HWP* hwp) {
   }
 }
 
+void pref_bo_umlc_hit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
+  STAT_EVENT(proc_id, PF_BO_MLC_NONPF_HIT);
+}
+
+void pref_bo_ul1_hit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
+  STAT_EVENT(proc_id, PF_BO_L1_NONPF_HIT);
+}
+
+void pref_bo_dcache_hit(Addr lineAddr, Addr loadPC) {
+  uns proc_id = get_proc_id_from_cmp_addr(lineAddr);
+  STAT_EVENT(proc_id, PF_BO_DCACHE_NONPF_HIT);
+}
+
 void pref_bo_ul1_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
   if (!PREF_UL1_BO_ON || !PREF_UL1_ON || !PREF_BO_ON)
     return;

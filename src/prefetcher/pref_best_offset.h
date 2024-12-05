@@ -39,6 +39,10 @@ void pref_bo_umlc_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC,
                           uns32 global_hist);
 void pref_bo_dcache_prefhit(Addr lineAddr, Addr loadPC);
 void pref_bo_dcache_miss(Addr lineAddr, Addr loadPC);
+void pref_bo_dcache_hit(Addr lineAddr, Addr loadPC);
+void pref_bo_umlc_hit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist);
+void pref_bo_ul1_hit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist);
+
 /*************************************************************/
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core);
