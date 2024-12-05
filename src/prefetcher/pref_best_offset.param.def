@@ -1,4 +1,5 @@
 DEF_PARAM(pref_bo_on                 , PREF_BO_ON              , Flag   , Flag      , FALSE       ,      )
 DEF_PARAM(pref_umlc_bo_on                 , PREF_UMLC_BO_ON              , Flag   , Flag      , FALSE       ,      ) 
 DEF_PARAM(pref_ul1_bo_on                 , PREF_UL1_BO_ON              , Flag   , Flag      , FALSE       ,      ) 
+DEF_PARAM(pref_dcache_bo_on                 , PREF_DCACHE_BO_ON              , Flag   , Flag      , FALSE       ,      ) 
 DEF_PARAM(debug_pref_bo              , DEBUG_PREF_BO           , Flag   , Flag      , TRUE       ,      ) 

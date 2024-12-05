@@ -22,6 +22,7 @@ extern uns offsets[OFFSET_LIST_SIZE];
 typedef struct{
   Pref_BO* bo_hwp_core_ul1;
   Pref_BO* bo_hwp_core_umlc;
+  Pref_BO* bo_hwp_core_dcache;
 } bo_prefetchers;
 /*************************************************************/
 /* HWP Interface */
@@ -36,7 +37,8 @@ void pref_bo_umlc_miss(uns8 proc_id, Addr lineAddr, Addr loadPC,
                        uns32 global_hist);
 void pref_bo_umlc_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC,
                           uns32 global_hist);
-
+void pref_bo_dcache_prefhit(Addr lineAddr, Addr loadPC);
+void pref_bo_dcache_miss(Addr lineAddr, Addr loadPC);
 /*************************************************************/
 
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core);
@@ -46,6 +48,7 @@ void train_termination_check(uns8 proc_id, Pref_BO* bo_hwp, int* retFlag);
 void pref_bo_get_offset_ul1(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
 void pref_bo_get_offset_umlc(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
 void pref_update_rr(Pref_BO* bo_hwp_core, Addr lineAddr, uns8 proc_id);
+void pref_bo_get_offset_dcache(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC);
 uns hash_addr(Addr lineAddr);
 void dump_recent_requests(Addr *recent_requests);
 void dump_score_table(uns *score_table, uns size);

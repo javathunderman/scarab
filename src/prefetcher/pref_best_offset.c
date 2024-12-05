@@ -50,6 +50,11 @@ void pref_bo_init(HWP* hwp) {
     bo_prefetchers_array.bo_hwp_core_ul1-> type = UL1;
     init_bo_core(hwp, bo_prefetchers_array.bo_hwp_core_ul1);
   }
+  if (PREF_DCACHE_BO_ON) {
+    DEBUG(0, "Enabling data cache prefetch with BO\n");
+    bo_prefetchers_array.bo_hwp_core_dcache  = (Pref_BO*)malloc(sizeof(Pref_BO) * NUM_CORES);
+    init_bo_core(hwp, bo_prefetchers_array.bo_hwp_core_dcache);
+  }
 }
 
 void pref_bo_ul1_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
@@ -70,6 +75,16 @@ void pref_bo_umlc_prefhit(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global
   pref_bo_train(&bo_prefetchers_array.bo_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC, TRUE);
 }
 
+void pref_bo_dcache_prefhit(Addr lineAddr, Addr loadPC) {
+  if (!PREF_DCACHE_BO_ON || !PREF_BO_ON)
+    return;
+  DEBUG(0, "PREF_BO_DCACHE hit!\n");
+  uns proc_id = get_proc_id_from_cmp_addr(lineAddr);
+  STAT_EVENT(0, PF_BO_DCACHE_HIT);
+  pref_bo_get_offset_dcache(&bo_prefetchers_array.bo_hwp_core_dcache[proc_id], proc_id, lineAddr, loadPC);
+  pref_bo_train(&bo_prefetchers_array.bo_hwp_core_dcache[proc_id], proc_id, lineAddr, loadPC, TRUE);
+}
+
 void pref_bo_ul1_miss(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hist) {
   if (!PREF_UL1_BO_ON || !PREF_UL1_ON || !PREF_BO_ON)
     return;
@@ -88,6 +103,16 @@ void pref_bo_umlc_miss(uns8 proc_id, Addr lineAddr, Addr loadPC, uns32 global_hi
   pref_bo_train(&bo_prefetchers_array.bo_hwp_core_umlc[proc_id], proc_id, lineAddr, loadPC, FALSE);
 }
 
+void pref_bo_dcache_miss(Addr lineAddr, Addr loadPC) {
+  if (!PREF_DCACHE_BO_ON || !PREF_BO_ON)
+    return;
+  uns proc_id = get_proc_id_from_cmp_addr(lineAddr);
+  DEBUG(proc_id, "PREF_BO_DCACHE miss!\n");
+  STAT_EVENT(proc_id, PF_BO_DCACHE_MISS);
+  pref_bo_get_offset_dcache(&bo_prefetchers_array.bo_hwp_core_dcache[proc_id], proc_id, lineAddr, loadPC);
+  pref_bo_train(&bo_prefetchers_array.bo_hwp_core_dcache[proc_id], proc_id, lineAddr, loadPC, TRUE);
+}
+
 void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
     DEBUG(0, "Call internal BO prefetcher initialization!\n");
     uns8 proc_id;
@@ -102,6 +127,7 @@ void init_bo_core(HWP* hwp, Pref_BO* bo_hwp_core) {
       memset(bo_hwp_core[proc_id].score_table, 0, OFFSET_LIST_SIZE * sizeof(uns));
       bo_hwp_core[proc_id].hwp_info = hwp->hwp_info;
       bo_hwp_core[proc_id].hwp_info->enabled = TRUE;
+      bo_hwp_core[proc_id].best_score = 0;
     }
 }
 
@@ -133,6 +159,8 @@ void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Fl
     base_addr = lineAddr - ((offsets[bo_hwp->offset_training_index]) << LOG2(MLC_LINE_SIZE));
   } else if (bo_hwp->type == UL1) {
     base_addr = lineAddr - ((offsets[bo_hwp->offset_training_index]) << LOG2(L1_LINE_SIZE));
+  } else if (bo_hwp->type == DCACHE) {
+    base_addr = lineAddr - ((offsets[bo_hwp->offset_training_index]) << LOG2(DCACHE_LINE_SIZE));
   }
 
   uns hash_index = hash_addr(base_addr);
@@ -169,9 +197,10 @@ void train_termination_check(uns8 proc_id, Pref_BO* bo_hwp, int *retFlag) {
       return;
     }
     if(bo_hwp->score_table[i] > scoreMax) {
-      bo_hwp->best_score    = bo_hwp->score_table[i];
+      scoreMax   = bo_hwp->score_table[i];
     }
   }
+  bo_hwp->best_score = scoreMax;
 
   // Check for ROUNDMAX
   if(bo_hwp->current_round == ROUNDMAX) {
@@ -206,18 +235,47 @@ void pref_bo_get_offset_ul1(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr,
                             Addr loadPC) {
   if (bo_hwp->best_score > BADSCORE) {
     Addr prefetch_addr = lineAddr + ((bo_hwp->current_prefetch_offset) << LOG2(L1_LINE_SIZE));
+    DEBUG(proc_id, "UL1 Prefetching with line addr %lld", prefetch_addr);
     pref_addto_ul1req_queue(proc_id, prefetch_addr, bo_hwp->hwp_info->id);
   }
-  pref_update_rr(bo_hwp, lineAddr, proc_id);
+  if (bo_hwp->best_score > BADSCORE) {
+    pref_update_rr(bo_hwp, lineAddr - (bo_hwp->current_prefetch_offset << LOG2(L1_LINE_SIZE)), proc_id);
+  } else {
+    pref_update_rr(bo_hwp, lineAddr, proc_id);
+  }
 }
 
 void pref_bo_get_offset_umlc(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC) {
     if (bo_hwp->best_score > BADSCORE) {
       // shift increment left by the number of offset bits
       Addr prefetch_addr = lineAddr + ((bo_hwp->current_prefetch_offset) << LOG2(MLC_LINE_SIZE));
-      pref_addto_umlc_req_queue(proc_id, prefetch_addr, bo_hwp->hwp_info->id);
+      pref_addto_umlc_req_queue(proc_id, (prefetch_addr >> LOG2(MLC_LINE_SIZE)), bo_hwp->hwp_info->id);
     }
     pref_update_rr(bo_hwp, lineAddr, proc_id);
+    DEBUG(proc_id, "Current UMLC offset: %d\n", bo_hwp->current_prefetch_offset);
+    DEBUG(proc_id, "delta for address %d\n", ((bo_hwp->current_prefetch_offset) << LOG2(MLC_LINE_SIZE)));
+    
+    
+}
+
+void pref_bo_get_offset_dcache(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC) {
+    if (bo_hwp->best_score > BADSCORE) {
+      // shift increment left by the number of offset bits
+      Addr prefetch_addr = lineAddr + ((bo_hwp->current_prefetch_offset) << LOG2(L1_LINE_SIZE));
+      DEBUG(proc_id, "DL0 Prefetching with line addr %lld", prefetch_addr);
+      new_mem_req(MRT_DPRF, 0,
+                        prefetch_addr,
+                        L1_LINE_SIZE, 1, NULL,
+                        (L2L1_FILL_PREF_CACHE ? dc_pref_cache_fill_line :
+                                                dcache_fill_line),
+                        unique_count,
+                        0);
+    }
+    if (bo_hwp->best_score > BADSCORE) {
+      pref_update_rr(bo_hwp, lineAddr - (bo_hwp->current_prefetch_offset << LOG2(DCACHE_LINE_SIZE)), proc_id);
+    } else {
+      pref_update_rr(bo_hwp, lineAddr, proc_id);
+    }
 }
 
 void dump_recent_requests(Addr *recent_requests) {
