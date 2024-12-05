@@ -236,7 +236,8 @@ void pref_bo_get_offset_ul1(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr,
   if (bo_hwp->best_score > BADSCORE) {
     Addr prefetch_addr = lineAddr + ((bo_hwp->current_prefetch_offset) << LOG2(L1_LINE_SIZE));
     DEBUG(proc_id, "UL1 Prefetching with line addr %lld", prefetch_addr);
-    pref_addto_ul1req_queue(proc_id, prefetch_addr, bo_hwp->hwp_info->id);
+    // Queue access to the index of the line we want
+    pref_addto_ul1req_queue(proc_id, (prefetch_addr >> LOG2(L1_LINE_SIZE)), bo_hwp->hwp_info->id);
   }
   if (bo_hwp->best_score > BADSCORE) {
     pref_update_rr(bo_hwp, lineAddr - (bo_hwp->current_prefetch_offset << LOG2(L1_LINE_SIZE)), proc_id);
@@ -249,6 +250,7 @@ void pref_bo_get_offset_umlc(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr 
     if (bo_hwp->best_score > BADSCORE) {
       // shift increment left by the number of offset bits
       Addr prefetch_addr = lineAddr + ((bo_hwp->current_prefetch_offset) << LOG2(MLC_LINE_SIZE));
+      // Queue access to the index of the line we want
       pref_addto_umlc_req_queue(proc_id, (prefetch_addr >> LOG2(MLC_LINE_SIZE)), bo_hwp->hwp_info->id);
     }
     pref_update_rr(bo_hwp, lineAddr, proc_id);
@@ -263,8 +265,9 @@ void pref_bo_get_offset_dcache(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Add
       // shift increment left by the number of offset bits
       Addr prefetch_addr = lineAddr + ((bo_hwp->current_prefetch_offset) << LOG2(L1_LINE_SIZE));
       DEBUG(proc_id, "DL0 Prefetching with line addr %lld", prefetch_addr);
+      // Queue access to the index of the line we want
       new_mem_req(MRT_DPRF, 0,
-                        prefetch_addr,
+                        (prefetch_addr >> LOG2(DCACHE_LINE_SIZE)),
                         L1_LINE_SIZE, 1, NULL,
                         (L2L1_FILL_PREF_CACHE ? dc_pref_cache_fill_line :
                                                 dcache_fill_line),
