@@ -1,11 +1,7 @@
 #ifndef __PREF_BO_H__
 #define __PREF_BO_H__
 #include "pref_common.h"
-#define RECENT_REQUESTS_SIZE 256
 #define OFFSET_LIST_SIZE 52
-#define SCOREMAX 31 // 5 bit scores
-#define ROUNDMAX 100 // arbitrary
-#define BADSCORE 1
 typedef struct Pref_BO_Struct {
   HWP_Info* hwp_info;
   CacheLevel type;
