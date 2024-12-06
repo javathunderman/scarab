@@ -1204,7 +1204,9 @@ Flag mem_process_mlc_hit_access(Mem_Req* req, Mem_Queue_Entry* mlc_queue_entry,
           STAT_EVENT(req->proc_id, MLC_PREF_HIT);
           if(!data->seen_prefetch) {
             data->seen_prefetch = TRUE;
-
+            pref_umlc_pref_hit(
+              req->proc_id, req->addr, data->pref_loadPC, data->global_hist,
+              lru_position, data->prefetcher_id);
             STAT_EVENT(req->proc_id, MLC_PREF_UNIQUE_HIT);
             STAT_EVENT(req->proc_id, PREF_MLC_TOTAL_USED);
             STAT_EVENT(req->proc_id, CORE_PREF_MLC_USED);
