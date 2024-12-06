@@ -27,10 +27,11 @@
     ],
     "experiment": "lab3",
     "configurations": {
-        "umlc": "--dcache_size 32768 --dcache_assoc 4 --pref_framework_on 1 --pref_stream_on 0 --pref_bo_on 1 --pref_umlc_on 1 --pref_umlc_bo_on 1", 
-        "ul1": "--dcache_size 32768 --dcache_assoc 4 --pref_framework_on 1 --pref_stream_on 0 --pref_bo_on 1 --pref_umlc_on 1 --pref_umlc_bo_on 0 --pref_ul1_bo_on 1",
-        "dcache": "--dcache_size 32768 --dcache_assoc 4 --pref_framework_on 1 --pref_stream_on 0 --pref_bo_on 1 --pref_umlc_on 1 --pref_umlc_bo_on 0 --pref_ul1_bo_on 0 --pref_dcache_bo_on 1",
-        "none": "--dcache_size 32768 --dcache_assoc 4 --pref_framework_on 0"
+        "umlc": "--dcache_size 32768 --dcache_assoc 4 --dcache_cycles 3 --dcache_banks 8 --mlc_size 512000 --mlc_assoc 8 --mlc_cycles 11 --mlc_line_size 64 --l1_size 8000000 --l1_assoc 16 --l1_cycles 21  --pref_framework_on 1 --pref_stream_on 0 --pref_bo_on 1 --pref_umlc_on 1 --pref_umlc_bo_on 1", 
+        "ul1": "--dcache_size 32768 --dcache_assoc 4 --dcache_cycles 3 --dcache_banks 8 --mlc_size 512000 --mlc_assoc 8 --mlc_cycles 11 --mlc_line_size 64 --l1_size 8000000 --l1_assoc 16 --l1_cycles 21  --pref_framework_on 1 --pref_stream_on 0 --pref_bo_on 1 --pref_umlc_on 1 --pref_umlc_bo_on 0 --pref_ul1_bo_on 1",
+        "dcache": "--dcache_size 32768 --dcache_assoc 4 --dcache_cycles 3 --dcache_banks 8 --mlc_size 512000 --mlc_assoc 8 --mlc_cycles 11 --mlc_line_size 64  --l1_size 8000000 --l1_assoc 16 --l1_cycles 21  --pref_framework_on 1 --pref_stream_on 0 --pref_bo_on 1 --pref_umlc_on 1 --pref_umlc_bo_on 0 --pref_ul1_bo_on 0 --pref_dcache_bo_on 1",
+        "none": "--dcache_size 32768 --dcache_assoc 4 --dcache_cycles 3 --dcache_banks 8 --mlc_size 512000 --mlc_assoc 8 --mlc_cycles 11 --mlc_line_size 64  --l1_size 8000000 --l1_assoc 16 --l1_cycles 21  --pref_framework_on 0", 
+        "default": "--dcache_size 32768 --dcache_assoc 4 --dcache_cycles 3 --dcache_banks 8 --mlc_size 512000 --mlc_assoc 8 --mlc_cycles 11 --mlc_line_size 64  --l1_size 8000000 --l1_assoc 16 --l1_cycles 21  --pref_framework_on 1"
 
   }
 }
