@@ -167,7 +167,7 @@ void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Fl
 
   // Calculate base_addr using the current test offset
   // Addr base_addr = lineAddr - offsets[bo_hwp->offset_training_index];
-  Addr base_addr;
+  Addr base_addr = 0;
   if (bo_hwp->type == UMLC) {
     base_addr = lineAddr - ((offsets[bo_hwp->offset_training_index]) << LOG2(MLC_LINE_SIZE));
   } else if (bo_hwp->type == UL1) {
@@ -195,7 +195,7 @@ void pref_bo_train(Pref_BO* bo_hwp, uns8 proc_id, Addr lineAddr, Addr loadPC, Fl
 void train_termination_check(uns8 proc_id, Pref_BO* bo_hwp, int *retFlag) {
   *retFlag = 1;
   int scoreMaxInd = -1;
-  dump_score_table(bo_hwp->score_table, OFFSET_LIST_SIZE);
+  // dump_score_table(bo_hwp->score_table, OFFSET_LIST_SIZE);
   // Check for SCOREMAX
   uns scoreMax = 0;
   for(uns i = 0; i < OFFSET_LIST_SIZE; i++) {
